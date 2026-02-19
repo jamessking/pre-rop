@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pre-ROP Fitness Plan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c0e;
+      --surface: #111416;
+      --surface2: #181c1f;
+      --border: #222629;
+      --accent: #c8960c;
+      --accent2: #e8b420;
+      --text: #d4d8dc;
+      --text-muted: #6b7280;
+      --text-dim: #3d4449;
+      --danger: #c0392b;
+      --success: #27ae60;
+      --week-colors: #c8960c, #e67e22, #e74c3c, #9b59b6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Barlow', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .logo span { color: var(--text); }
+
+    nav {
+      margin-left: auto;
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .nav-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.4rem 0.9rem;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover { color: var(--text); border-color: var(--border); }
+    .nav-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(200,150,12,0.08); }
+
+    /* ── VIEWS ── */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    /* ── OVERVIEW ── */
+    .overview-header {
+      padding: 3rem 1.5rem 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .overview-header h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 900;
+      line-height: 0.95;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+    }
+    .overview-header h1 em {
+      font-style: normal;
+      color: var(--accent);
+      display: block;
+    }
+
+    .overview-header p {
+      margin-top: 1rem;
+      color: var(--text-muted);
+      max-width: 560px;
+      font-size: 0.95rem;
+    }
+
+    .rpe-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .rpe-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.78rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .rpe-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .weeks-grid {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 1.5rem 3rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .week-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .week-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .week-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 3rem;
+      line-height: 1;
+      opacity: 0.15;
+    }
+
+    .week-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .days-list {
+      display: grid;
+    }
+
+    .day-row {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+      cursor: pointer;
+      transition: background 0.1s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .day-row:last-child { border-bottom: none; }
+    .day-row:hover { background: var(--surface2); }
+    .day-row.rest-day { cursor: default; opacity: 0.5; }
+    .day-row.rest-day:hover { background: none; }
+
+    .day-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-muted);
+      width: 50px;
+      flex-shrink: 0;
+    }
+
+    .day-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      flex: 1;
+    }
+
+    .day-summary {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex: 2;
+    }
+
+    .day-arrow {
+      color: var(--accent);
+      font-size: 1.2rem;
+    }
+
+    /* ── SESSION VIEW ── */
+    .session-header {
+      padding: 2rem 1.5rem 1.5rem;
+      max-width: 700px;
+      margin: 0 auto;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .session-breadcrumb {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      cursor: pointer;
+    }
+    .session-breadcrumb:hover { color: var(--accent); }
+    .session-breadcrumb::before { content: "← "; }
+
+    .session-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .session-meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* ── WORKOUT PLAYER ── */
+    .player-container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* Progress */
+    .progress-track {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .progress-pip {
+      height: 4px;
+      flex: 1;
+      min-width: 8px;
+      background: var(--border);
+      border-radius: 2px;
+      transition: background 0.3s;
+    }
+    .progress-pip.done { background: var(--accent); }
+    .progress-pip.current { background: var(--accent2); }
+
+    /* Active step card */
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .step-type-bar {
+      height: 3px;
+      background: var(--accent);
+    }
+
+    .step-body {
+      padding: 1.5rem;
+    }
+
+    .step-type-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .step-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 2rem;
+      text-transform: uppercase;
+      line-height: 1.1;
+      margin-bottom: 0.75rem;
+    }
+
+    .step-cue {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      border-left: 2px solid var(--border);
+      padding-left: 1rem;
+    }
+
+    /* Timer display */
+    .timer-display {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .timer-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 3.5rem;
+      color: var(--accent2);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      min-width: 120px;
+    }
+
+    .timer-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    /* Reps display */
+    .reps-display {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .reps-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 3.5rem;
+      color: var(--accent2);
+      line-height: 1;
+    }
+
+    .reps-unit {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* RPE badge */
+    .rpe-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.8rem;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    /* Control buttons */
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .btn {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 0.75rem 1.5rem;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      flex: 1;
+    }
+    .btn-primary:hover { background: var(--accent2); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+
+    .btn-danger {
+      background: var(--surface2);
+      color: var(--danger);
+      border: 1px solid rgba(192,57,43,0.3);
+    }
+
+    /* Exercise list in set */
+    .exercise-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .exercise-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--surface2);
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+    .exercise-item.current { background: rgba(200,150,12,0.12); border: 1px solid rgba(200,150,12,0.3); }
+    .exercise-item.done { opacity: 0.4; }
+
+    .ex-num {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      width: 20px;
+    }
+
+    .ex-name { flex: 1; font-weight: 500; }
+
+    .ex-reps {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* Upcoming steps */
+    .upcoming {
+      margin-top: 1rem;
+    }
+
+    .upcoming-label {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+
+    .upcoming-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .upcoming-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* Complete screen */
+    .complete-screen {
+      text-align: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .complete-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    .complete-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 3rem;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .complete-sub {
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Voice status */
+    .voice-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .voice-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+    .voice-dot.active { background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+    /* Timer ring */
+    .timer-ring-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timer-svg {
+      transform: rotate(-90deg);
+    }
+
+    .timer-circle-bg { fill: none; stroke: var(--border); }
+    .timer-circle-fg { fill: none; stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+
+    .timer-center {
+      position: absolute;
+      text-align: center;
+    }
+
+    /* Pulse animation */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .pulsing { animation: pulse 1s ease-in-out infinite; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .day-summary { display: none; }
+      .overview-header { padding: 2rem 1rem 1.5rem; }
+      .weeks-grid { padding: 0 1rem 2rem; }
+      .player-container { padding: 1rem; }
+      .session-header { padding: 1.5rem 1rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Pre<span>-ROP</span></div>
+  <div class="voice-status" id="voiceStatus">
+    <div class="voice-dot" id="voiceDot"></div>
+    <span id="voiceLabel">Voice off</span>
+  </div>
+  <nav>
+    <button class="nav-btn active" onclick="showView('overview')" id="nav-overview">Plan</button>
+    <button class="nav-btn" onclick="showView('session')" id="nav-session" style="display:none">Session</button>
+  </nav>
+</header>
+
+<!-- OVERVIEW VIEW -->
+<div class="view active" id="view-overview">
+  <div class="overview-header">
+    <h1>Royal Marines<em>Pre-Entry</em>Fitness Plan</h1>
+    <p>A 4-week preparation programme for the Recruit Orientation Phase (ROP) at CTCRM Lympstone. Follow each session in order — tap any day to begin a coached workout.</p>
+    <div class="rpe-bar">
+      <div class="rpe-item"><div class="rpe-dot" style="background:#27ae60"></div>RPE 1–3 Light</div>
+      <div class="rpe-item"><div class="rpe-dot" style="background:#f39c12"></div>RPE 4–6 Moderate</div>
+      <div class="rpe-item"><div class="rpe-dot" style="background:#e67e22"></div>RPE 7–8 Vigorous</div>
+      <div class="rpe-item"><div class="rpe-dot" style="background:#c0392b"></div>RPE 9–10 Max</div>
+    </div>
+  </div>
+
+  <div class="weeks-grid" id="weeksGrid"></div>
+</div>
+
+<!-- SESSION VIEW -->
+<div class="view" id="view-session">
+  <div class="session-header" id="sessionHeader"></div>
+  <div class="player-container" id="playerContainer"></div>
+</div>
+
+<script src="workouts.js"></script>
+<script>
+// ── Voice ──────────────────────────────────────────────────────────────────
+let voiceEnabled = false;
+let speaking = false;
+const synth = window.speechSynthesis;
+
+function speak(text, priority = false) {
+  if (!voiceEnabled) return;
+  if (priority) synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.rate = 0.92;
+  utt.pitch = 1.0;
+  utt.volume = 1.0;
+  utt.onstart = () => { speaking = true; document.getElementById('voiceDot').classList.add('active'); };
+  utt.onend = () => { speaking = false; document.getElementById('voiceDot').classList.remove('active'); };
+  synth.speak(utt);
+}
+
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+  const dot = document.getElementById('voiceDot');
+  const label = document.getElementById('voiceLabel');
+  if (voiceEnabled) {
+    dot.classList.add('active');
+    label.textContent = 'Voice on';
+    speak("Voice coaching enabled. Let's begin.", true);
+  } else {
+    synth.cancel();
+    dot.classList.remove('active');
+    label.textContent = 'Voice off';
+  }
+}
+
+document.getElementById('voiceStatus').onclick = toggleVoice;
+document.getElementById('voiceStatus').style.cursor = 'pointer';
+document.getElementById('voiceStatus').title = 'Click to toggle voice coaching';
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+// ── Build Overview ─────────────────────────────────────────────────────────
+function buildOverview() {
+  const grid = document.getElementById('weeksGrid');
+  const weekColors = ['#c8960c', '#e67e22', '#e74c3c', '#9b59b6'];
+
+  WEEKS.forEach((week, wi) => {
+    const card = document.createElement('div');
+    card.className = 'week-card';
+    card.innerHTML = `
+      <div class="week-header">
+        <div class="week-num" style="color:${weekColors[wi]}">${week.week.toString().padStart(2,'0')}</div>
+        <div>
+          <div class="week-label" style="color:${weekColors[wi]}">Week ${week.week}</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">5 training days + 2 rest days</div>
+        </div>
+      </div>
+      <div class="days-list">
+        ${week.days.map(day => {
+          if (day.rest) {
+            return `<div class="day-row rest-day">
+              <div class="day-num">Day ${day.day}</div>
+              <div class="day-title">Rest & Recovery</div>
+              <div class="day-summary">${day.summary}</div>
+            </div>`;
+          }
+          return `<div class="day-row" onclick="openSession(${wi},${day.day - 1})">
+            <div class="day-num">Day ${day.day}</div>
+            <div class="day-title">${day.title}</div>
+            <div class="day-summary">${day.summary}</div>
+            <div class="day-arrow">›</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ── Session Player ─────────────────────────────────────────────────────────
+let currentSteps = [];
+let currentStepIdx = 0;
+let timerInterval = null;
+let timerRemaining = 0;
+let timerDuration = 0;
+let sessionTitle = '';
+let sessionMeta = '';
+let exIdx = 0; // for set exercises
+let setRound = 0;
+let intervalRound = 0;
+let intervalIdx = 0;
+
+function openSession(weekIdx, dayIdx) {
+  const week = WEEKS[weekIdx];
+  const day = week.days[dayIdx];
+  if (day.rest) return;
+
+  clearTimer();
+  currentStepIdx = 0;
+  exIdx = 0;
+  setRound = 0;
+  intervalRound = 0;
+  intervalIdx = 0;
+
+  sessionTitle = `Week ${week.week} · Day ${day.day}`;
+  sessionMeta = day.title;
+
+  // Build flat step list
+  let steps = [];
+
+  if (day.circuit) {
+    steps = buildCircuitSteps(day.circuit);
+  } else {
+    steps = day.session.slice();
+  }
+
+  currentSteps = steps;
+
+  // Show session nav
+  document.getElementById('nav-session').style.display = '';
+  showView('session');
+
+  renderSessionHeader(day, weekIdx);
+  renderStep();
+
+  speak(`Starting ${day.title}. Week ${week.week}, Day ${day.day}.`, true);
+}
+
+function buildCircuitSteps(circuitKey) {
+  const circuit = CIRCUITS[circuitKey];
+  const steps = [];
+  circuit.reps.forEach((reps, ri) => {
+    steps.push({ type: '_round_header', name: `Round ${ri+1} of ${circuit.reps.length}`, reps, circuit: circuit.name });
+    circuit.exercises.forEach(ex => {
+      steps.push({ type: 'exercise', name: ex.name, reps, cue: ex.cue });
+    });
+    if (ri < circuit.reps.length - 1) {
+      steps.push({ type: 'rest', name: `Rest between rounds`, duration: 90, cue: 'Take 90 seconds. Hydrate. Ready for the next round.' });
+    }
+  });
+  return steps;
+}
+
+function renderSessionHeader(day, weekIdx) {
+  document.getElementById('sessionHeader').innerHTML = `
+    <div class="session-breadcrumb" onclick="goBack()">Back to plan</div>
+    <div class="session-title">${day.title}</div>
+    <div class="session-meta">Week ${WEEKS[weekIdx].week} · Day ${day.day} · ${day.summary}</div>
+  `;
+}
+
+function goBack() {
+  clearTimer();
+  synth.cancel();
+  showView('overview');
+  document.getElementById('nav-session').style.display = 'none';
+}
+
+function renderStep() {
+  if (currentStepIdx >= currentSteps.length) {
+    renderComplete();
+    return;
+  }
+
+  const step = currentSteps[currentStepIdx];
+  const container = document.getElementById('playerContainer');
+
+  // Progress pips
+  const pipHtml = currentSteps.map((s, i) => {
+    if (s.type === '_round_header') return '';
+    let cls = i < currentStepIdx ? 'done' : i === currentStepIdx ? 'current' : '';
+    return `<div class="progress-pip ${cls}"></div>`;
+  }).join('');
+
+  // Skip round headers
+  if (step.type === '_round_header') {
+    speak(`Round ${step.reps} reps. ${step.circuit}.`, true);
+    currentStepIdx++;
+    setTimeout(renderStep, 800);
+    return;
+  }
+
+  let stepHtml = '';
+
+  if (step.type === 'run') {
+    stepHtml = buildTimedStep(step, 'RUN', step.rpe ? `RPE ${step.rpe}` : '');
+  } else if (step.type === 'rest') {
+    stepHtml = buildTimedStep(step, 'REST', '');
+  } else if (step.type === 'stretch') {
+    stepHtml = buildStretchStep(step);
+  } else if (step.type === 'exercise') {
+    stepHtml = buildRepsStep(step);
+  } else if (step.type === 'set') {
+    stepHtml = buildSetStep(step);
+  } else if (step.type === 'max_effort') {
+    stepHtml = buildMaxEffortStep(step);
+  } else if (step.type === 'interval_block') {
+    stepHtml = buildIntervalStep(step);
+  } else if (step.type === 'hill_sprint') {
+    stepHtml = buildHillSprintStep(step);
+  } else if (step.type === 'hill_circuit') {
+    stepHtml = buildHillCircuitStep(step);
+  }
+
+  // Upcoming
+  const upcoming = currentSteps.slice(currentStepIdx + 1, currentStepIdx + 4)
+    .filter(s => s.type !== '_round_header')
+    .map(s => `<div class="upcoming-item"><div class="upcoming-dot"></div>${s.name}</div>`).join('');
+
+  container.innerHTML = `
+    <div class="progress-track">${pipHtml}</div>
+    ${stepHtml}
+    ${upcoming ? `<div class="upcoming"><div class="upcoming-label">Up next</div>${upcoming}</div>` : ''}
+  `;
+
+  // Auto-start timed steps
+  if (['run','rest'].includes(step.type)) {
+    startTimer(step.duration);
+    speak(step.cue, true);
+  } else if (step.type === 'stretch' && step.stretches) {
+    startStretchSequence(step.stretches, 0);
+  } else if (step.type === 'interval_block') {
+    startIntervalBlock(step);
+  } else if (step.type === 'hill_sprint') {
+    if (step.rest) {
+      speak(`${step.name}. ${step.cue}`, true);
+    } else {
+      speak(`${step.name}. ${step.cue}`, true);
+    }
+  } else if (step.type === 'exercise') {
+    speak(`Perform ${step.reps} ${step.name}. ${step.cue}`, true);
+  } else if (step.type === 'set') {
+    speak(`${step.name}. Complete each exercise.`, true);
+  } else if (step.type === 'max_effort') {
+    speak(`${step.name}. ${step.cue}`, true);
+  } else if (step.type === 'hill_circuit') {
+    speak(step.cue, true);
+  }
+}
+
+function buildTimedStep(step, typeLabel, meta) {
+  const mins = Math.floor(step.duration / 60);
+  const secs = step.duration % 60;
+  const timeStr = mins > 0 ? `${mins}:${secs.toString().padStart(2,'0')}` : `${secs}s`;
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="${typeLabel === 'REST' ? 'background:var(--text-muted)' : ''}"></div>
+      <div class="step-body">
+        <div class="step-type-label">${typeLabel} ${meta ? '· ' + meta : ''}</div>
+        <div class="step-name">${step.name}</div>
+        <div class="step-cue">${step.cue}</div>
+        <div class="timer-display">
+          <div>
+            <div class="timer-num pulsing" id="timerDisplay">${timeStr}</div>
+            <div class="timer-label">remaining</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Skip →</button>
+    </div>
+  `;
+}
+
+function buildRepsStep(step) {
+  return `
+    <div class="step-card">
+      <div class="step-type-bar"></div>
+      <div class="step-body">
+        <div class="step-type-label">Exercise</div>
+        <div class="step-name">${step.name}</div>
+        <div class="step-cue">${step.cue}</div>
+        <div class="reps-display">
+          <div class="reps-num">${step.reps}</div>
+          <div class="reps-unit">reps</div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Done ✓</button>
+    </div>
+  `;
+}
+
+function buildSetStep(step) {
+  const exList = step.exercises.map((ex, i) => `
+    <div class="exercise-item" id="ex-${i}">
+      <span class="ex-num">${i + 1}</span>
+      <span class="ex-name">${ex.name}</span>
+      <span class="ex-reps">${ex.reps} reps</span>
+    </div>
+  `).join('');
+  return `
+    <div class="step-card">
+      <div class="step-type-bar"></div>
+      <div class="step-body">
+        <div class="step-type-label">Set</div>
+        <div class="step-name">${step.name}</div>
+        <div class="exercise-list">${exList}</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Complete Set ✓</button>
+    </div>
+  `;
+}
+
+function buildMaxEffortStep(step) {
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="background:var(--danger)"></div>
+      <div class="step-body">
+        <div class="step-type-label" style="color:var(--danger)">Max Effort</div>
+        <div class="step-name">${step.name}</div>
+        <div class="step-cue">${step.cue}</div>
+        <div style="margin-top:1rem;font-size:0.85rem;color:var(--text-muted)">Tap Done when finished. Record your reps.</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Done ✓</button>
+    </div>
+  `;
+}
+
+function buildIntervalStep(step) {
+  const intervals = step.intervals.map((iv, i) => `
+    <div class="exercise-item" id="iv-${i}">
+      <span class="ex-num">${i + 1}</span>
+      <span class="ex-name">${iv.name}</span>
+      <span class="ex-reps">${iv.duration}s</span>
+    </div>
+  `).join('');
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="background:var(--danger)"></div>
+      <div class="step-body">
+        <div class="step-type-label">Intervals · ${step.rounds} rounds</div>
+        <div class="step-name" id="ivStepName">${step.name}</div>
+        <div class="step-cue" id="ivCue">Starting shortly…</div>
+        <div class="timer-display">
+          <div>
+            <div class="timer-num pulsing" id="timerDisplay">–</div>
+            <div class="timer-label" id="ivLabel">round <span id="ivRound">1</span> of ${step.rounds}</div>
+          </div>
+          <div class="rpe-badge" id="ivRpe">RPE –</div>
+        </div>
+        <div class="exercise-list">${intervals}</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" id="ivSkipBtn" onclick="nextStep()">Skip</button>
+    </div>
+  `;
+}
+
+function buildHillSprintStep(step) {
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="background:var(--danger)"></div>
+      <div class="step-body">
+        <div class="step-type-label">Hill Sprint · RPE ${step.rpe}</div>
+        <div class="step-name">${step.name}</div>
+        <div class="step-cue">${step.cue}</div>
+        ${step.rest ? `
+        <div class="timer-display">
+          <div>
+            <div class="timer-num pulsing" id="timerDisplay">${step.rest}s</div>
+            <div class="timer-label">rest after sprint</div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStepHillSprint(${step.rest || 0})">Sprint Done →</button>
+    </div>
+  `;
+}
+
+function nextStepHillSprint(restDuration) {
+  if (restDuration > 0) {
+    speak(`Sprint complete. Rest for ${restDuration} seconds.`, true);
+    startTimer(restDuration, () => {
+      speak('Rest complete. Next sprint.', true);
+      currentStepIdx++;
+      renderStep();
+    });
+    document.querySelector('.btn-primary').textContent = 'Skip Rest →';
+    document.querySelector('.btn-primary').onclick = nextStep;
+  } else {
+    nextStep();
+  }
+}
+
+function buildHillCircuitStep(step) {
+  const items = Array.from({length: step.rounds}, (_,i) => `
+    <div class="exercise-item" id="hc-${i}">
+      <span class="ex-num">${i+1}</span>
+      <span class="ex-name">Hill + 10 squats, 10 press ups, 10 sit ups</span>
+      <span class="ex-reps">1 min rest</span>
+    </div>
+  `).join('');
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="background:var(--danger)"></div>
+      <div class="step-body">
+        <div class="step-type-label">Hill Circuit · ${step.rounds} rounds</div>
+        <div class="step-name">${step.name}</div>
+        <div class="step-cue">${step.cue}</div>
+        <div class="exercise-list" style="margin-top:1rem;">${items}</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Complete ✓</button>
+    </div>
+  `;
+}
+
+function buildStretchStep(step) {
+  const items = step.stretches.map((s, i) => `
+    <div class="exercise-item" id="str-${i}">
+      <span class="ex-num">${i+1}</span>
+      <span class="ex-name">${s.name}</span>
+      <span class="ex-reps">${s.duration}s</span>
+    </div>
+  `).join('');
+  return `
+    <div class="step-card">
+      <div class="step-type-bar" style="background:#3498db"></div>
+      <div class="step-body">
+        <div class="step-type-label" style="color:#3498db">Stretch</div>
+        <div class="step-name" id="stretchName">${step.stretches[0].name}</div>
+        <div class="step-cue" id="stretchCue">${step.stretches[0].cue}</div>
+        <div class="timer-display">
+          <div>
+            <div class="timer-num pulsing" id="timerDisplay">–</div>
+            <div class="timer-label">hold</div>
+          </div>
+        </div>
+        <div class="exercise-list">${items}</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()">Skip →</button>
+    </div>
+  `;
+}
+
+// ── Timer logic ────────────────────────────────────────────────────────────
+function clearTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function startTimer(duration, onComplete) {
+  clearTimer();
+  timerRemaining = duration;
+  timerDuration = duration;
+  updateTimerDisplay();
+
+  timerInterval = setInterval(() => {
+    timerRemaining--;
+    updateTimerDisplay();
+    if (timerRemaining === 10) speak('10 seconds remaining.', false);
+    if (timerRemaining === 3) speak('3.', false);
+    if (timerRemaining === 2) speak('2.', false);
+    if (timerRemaining === 1) speak('1.', false);
+    if (timerRemaining <= 0) {
+      clearTimer();
+      if (onComplete) onComplete();
+      else { speak('Time. Moving on.', true); setTimeout(nextStep, 500); }
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timerDisplay');
+  if (!el) return;
+  const m = Math.floor(timerRemaining / 60);
+  const s = timerRemaining % 60;
+  el.textContent = m > 0 ? `${m}:${s.toString().padStart(2,'0')}` : `${timerRemaining}s`;
+}
+
+// ── Stretch sequence ───────────────────────────────────────────────────────
+function startStretchSequence(stretches, idx) {
+  if (idx >= stretches.length) {
+    speak('Stretch session complete.', true);
+    setTimeout(nextStep, 800);
+    return;
+  }
+  const s = stretches[idx];
+  const nameEl = document.getElementById('stretchName');
+  const cueEl = document.getElementById('stretchCue');
+  if (nameEl) nameEl.textContent = s.name;
+  if (cueEl) cueEl.textContent = s.cue;
+
+  // Highlight current
+  stretches.forEach((_, i) => {
+    const el = document.getElementById(`str-${i}`);
+    if (el) {
+      el.className = 'exercise-item' + (i < idx ? ' done' : i === idx ? ' current' : '');
+    }
+  });
+
+  speak(s.cue, true);
+  startTimer(s.duration, () => {
+    startStretchSequence(stretches, idx + 1);
+  });
+}
+
+// ── Interval block ─────────────────────────────────────────────────────────
+function startIntervalBlock(step) {
+  let round = 0;
+  let ivI = 0;
+
+  function runNext() {
+    if (round >= step.rounds) {
+      if (step.rest > 0) {
+        speak(`Block complete. Rest for ${step.rest} seconds.`, true);
+        startTimer(step.rest, () => {
+          speak('Rest complete.', true);
+          setTimeout(nextStep, 500);
+        });
+      } else {
+        speak('Intervals complete.', true);
+        setTimeout(nextStep, 500);
+      }
+      return;
+    }
+
+    const iv = step.intervals[ivI];
+    const roundEl = document.getElementById('ivRound');
+    const nameEl = document.getElementById('ivStepName');
+    const cueEl = document.getElementById('ivCue');
+    const rpeEl = document.getElementById('ivRpe');
+
+    if (roundEl) roundEl.textContent = round + 1;
+    if (nameEl) nameEl.textContent = iv.name;
+    if (cueEl) cueEl.textContent = iv.cue;
+    if (rpeEl) rpeEl.textContent = `RPE ${iv.rpe}`;
+
+    // Highlight interval
+    step.intervals.forEach((_, i) => {
+      const el = document.getElementById(`iv-${i}`);
+      if (el) el.className = 'exercise-item' + (i === ivI ? ' current' : '');
+    });
+
+    speak(iv.cue, true);
+    startTimer(iv.duration, () => {
+      ivI++;
+      if (ivI >= step.intervals.length) { ivI = 0; round++; }
+      runNext();
+    });
+  }
+
+  runNext();
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function nextStep() {
+  clearTimer();
+  synth.cancel();
+  currentStepIdx++;
+  renderStep();
+}
+
+function prevStep() {
+  clearTimer();
+  synth.cancel();
+  if (currentStepIdx > 0) currentStepIdx--;
+  renderStep();
+}
+
+function renderComplete() {
+  const container = document.getElementById('playerContainer');
+  container.innerHTML = `
+    <div class="complete-screen">
+      <div class="complete-icon">✓</div>
+      <div class="complete-title">Session Complete</div>
+      <div class="complete-sub">Well done. Rest, hydrate, and eat well.</div>
+      <div style="margin-top:2rem">
+        <button class="btn btn-primary" onclick="goBack()">Back to Plan</button>
+      </div>
+    </div>
+  `;
+  speak('Session complete. Well done. Rest up and recover.', true);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildOverview();
+</script>
+</body>
+</html>
