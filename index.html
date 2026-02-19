@@ -854,9 +854,14 @@ function renderStep() {
       speak(`${step.name}. ${step.cue}`, true);
     }
   } else if (step.type === 'exercise') {
-    speak(`Perform ${step.reps} ${step.name}. ${step.cue}`, true);
+    guidedExercises = [step];
+    guidedExIdx = 0;
+    setTimeout(() => startGuidedSet([step], () => nextStep()), 100);
   } else if (step.type === 'set') {
-    speak(`${step.name}. Complete each exercise.`, true);
+    guidedExercises = step.exercises;
+    guidedExIdx = 0;
+    speak(`${step.name}. ${step.exercises.length} exercises. Let us go.`, true);
+    setTimeout(() => startGuidedSet(step.exercises, () => nextStep()), 1000);
   } else if (step.type === 'max_effort') {
     speak(`${step.name}. ${step.cue}`, true);
   } else if (step.type === 'hill_circuit') {
@@ -890,49 +895,192 @@ function buildTimedStep(step, typeLabel, meta) {
   `;
 }
 
-function buildRepsStep(step) {
-  return `
+// ── Guided counted exercise ────────────────────────────────────────────────
+// State for guided set/exercise sequences
+let guidedExercises = [];
+let guidedExIdx = 0;
+let guidedPhase = 'idle'; // 'setup' | 'counting' | 'rest'
+let guidedRepCount = 0;
+let guidedRepInterval = null;
+const REP_PACE_MS = 1800; // ms between spoken rep numbers
+const SETUP_SECS = 5;     // seconds to get into position
+const BETWEEN_EX_SECS = 8; // rest between exercises in a set
+
+function clearGuidedInterval() {
+  if (guidedRepInterval) { clearInterval(guidedRepInterval); guidedRepInterval = null; }
+}
+
+function startGuidedSet(exercises, onAllDone) {
+  guidedExercises = exercises;
+  guidedExIdx = 0;
+  runGuidedExercise(onAllDone);
+}
+
+function runGuidedExercise(onAllDone) {
+  clearTimer();
+  clearGuidedInterval();
+
+  if (guidedExIdx >= guidedExercises.length) {
+    onAllDone();
+    return;
+  }
+
+  const ex = guidedExercises[guidedExIdx];
+  guidedPhase = 'setup';
+  guidedRepCount = 0;
+
+  // Update UI to show current exercise highlighted
+  updateGuidedUI(ex, 'setup', SETUP_SECS, 0);
+
+  speak(`Next. ${ex.name}. ${ex.reps} reps. ${ex.cue} Take your position.`, true);
+
+  // Setup countdown
+  let setupRemaining = SETUP_SECS;
+  const setupTick = setInterval(() => {
+    setupRemaining--;
+    updateGuidedTimerDisplay(setupRemaining);
+    if (setupRemaining === 3) speak('3', false);
+    if (setupRemaining === 2) speak('2', false);
+    if (setupRemaining === 1) speak('1', false);
+    if (setupRemaining <= 0) {
+      clearInterval(setupTick);
+      speak('Go.', true);
+      setTimeout(() => startCounting(ex, onAllDone), 600);
+    }
+  }, 1000);
+}
+
+function startCounting(ex, onAllDone) {
+  guidedPhase = 'counting';
+  guidedRepCount = 0;
+  updateGuidedUI(ex, 'counting', 0, 0);
+
+  guidedRepInterval = setInterval(() => {
+    guidedRepCount++;
+    updateGuidedRepDisplay(guidedRepCount, ex.reps);
+    speak(String(guidedRepCount), false);
+
+    if (guidedRepCount >= ex.reps) {
+      clearGuidedInterval();
+      speak('Good. Rest.', true);
+      guidedPhase = 'rest';
+
+      guidedExIdx++;
+      if (guidedExIdx >= guidedExercises.length) {
+        // All done
+        updateGuidedUI(ex, 'rest', BETWEEN_EX_SECS, guidedRepCount);
+        setTimeout(() => { onAllDone(); }, 1200);
+      } else {
+        // Short break before next exercise
+        let restLeft = BETWEEN_EX_SECS;
+        updateGuidedUI(ex, 'rest', restLeft, guidedRepCount);
+        const restTick = setInterval(() => {
+          restLeft--;
+          updateGuidedTimerDisplay(restLeft);
+          if (restLeft <= 0) {
+            clearInterval(restTick);
+            runGuidedExercise(onAllDone);
+          }
+        }, 1000);
+      }
+    }
+  }, REP_PACE_MS);
+}
+
+function updateGuidedUI(ex, phase, timerVal, repsDone) {
+  const container = document.getElementById('playerContainer');
+  if (!container) return;
+
+  // Rebuild exercise list highlighting
+  const exListHtml = guidedExercises.map((e, i) => {
+    let cls = 'exercise-item';
+    if (i < guidedExIdx || (i === guidedExIdx && phase === 'rest' && guidedExIdx === guidedExercises.length)) cls += ' done';
+    else if (i < guidedExIdx) cls += ' done';
+    else if (i === guidedExIdx && phase !== 'rest') cls += ' current';
+    else if (i === guidedExIdx - 1 && phase === 'rest') cls += ' done';
+    return `<div class="${cls}" id="gex-${i}">
+      <span class="ex-num">${i+1}</span>
+      <span class="ex-name">${e.name}</span>
+      <span class="ex-reps">${e.reps} reps</span>
+    </div>`;
+  }).join('');
+
+  let phaseLabel, timerLabel, timerColor;
+  if (phase === 'setup') {
+    phaseLabel = 'GET INTO POSITION';
+    timerLabel = 'seconds to start';
+    timerColor = 'var(--accent2)';
+  } else if (phase === 'counting') {
+    phaseLabel = 'GO';
+    timerLabel = 'reps done';
+    timerColor = 'var(--success)';
+  } else {
+    phaseLabel = 'REST';
+    timerLabel = 'next exercise soon';
+    timerColor = 'var(--text-muted)';
+  }
+
+  const displayVal = phase === 'counting' ? repsDone : timerVal;
+
+  container.innerHTML = `
+    <div class="progress-track" id="guidedProgressTrack"></div>
     <div class="step-card">
-      <div class="step-type-bar"></div>
+      <div class="step-type-bar" style="background:${timerColor}"></div>
       <div class="step-body">
-        <div class="step-type-label">Exercise</div>
-        <div class="step-name">${step.name}</div>
-        <div class="step-cue">${step.cue}</div>
-        <div class="reps-display">
-          <div class="reps-num">${step.reps}</div>
-          <div class="reps-unit">reps</div>
+        <div class="step-type-label" style="color:${timerColor}">${phaseLabel}</div>
+        <div class="step-name" id="guidedExName">${ex.name}</div>
+        <div class="step-cue">${ex.cue}</div>
+        <div class="timer-display">
+          <div>
+            <div class="timer-num pulsing" id="timerDisplay" style="color:${timerColor}">${displayVal}</div>
+            <div class="timer-label">${timerLabel}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:2.5rem;font-weight:900;color:var(--text-dim)">${ex.reps}</div>
+            <div class="timer-label">target</div>
+          </div>
         </div>
+        <div class="exercise-list" style="margin-top:1rem;">${exListHtml}</div>
       </div>
     </div>
     <div class="controls">
-      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
-      <button class="btn btn-primary" onclick="nextStep()">Done ✓</button>
+      <button class="btn btn-secondary" onclick="skipGuidedExercise()">Skip Exercise</button>
+      <button class="btn btn-primary" onclick="nextStep()">Skip All →</button>
     </div>
   `;
 }
 
+function updateGuidedTimerDisplay(val) {
+  const el = document.getElementById('timerDisplay');
+  if (el) el.textContent = val;
+}
+
+function updateGuidedRepDisplay(reps, target) {
+  const el = document.getElementById('timerDisplay');
+  if (el) el.textContent = reps;
+}
+
+function skipGuidedExercise() {
+  clearGuidedInterval();
+  clearTimer();
+  synth.cancel();
+  guidedExIdx++;
+  // Find onAllDone — just advance step
+  if (guidedExIdx >= guidedExercises.length) {
+    nextStep();
+  } else {
+    runGuidedExercise(() => nextStep());
+  }
+}
+
+function buildRepsStep(step) {
+  // Single exercise from a circuit — use guided flow
+  return `<div id="guidedSinglePlaceholder"></div>`;
+}
+
 function buildSetStep(step) {
-  const exList = step.exercises.map((ex, i) => `
-    <div class="exercise-item" id="ex-${i}">
-      <span class="ex-num">${i + 1}</span>
-      <span class="ex-name">${ex.name}</span>
-      <span class="ex-reps">${ex.reps} reps</span>
-    </div>
-  `).join('');
-  return `
-    <div class="step-card">
-      <div class="step-type-bar"></div>
-      <div class="step-body">
-        <div class="step-type-label">Set</div>
-        <div class="step-name">${step.name}</div>
-        <div class="exercise-list">${exList}</div>
-      </div>
-    </div>
-    <div class="controls">
-      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
-      <button class="btn btn-primary" onclick="nextStep()">Complete Set ✓</button>
-    </div>
-  `;
+  // Multi-exercise set — render placeholder, start guided immediately
+  return `<div id="guidedSetPlaceholder"></div>`;
 }
 
 function buildMaxEffortStep(step) {
