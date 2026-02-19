@@ -626,15 +626,22 @@ let voiceEnabled = false;
 let speaking = false;
 const synth = window.speechSynthesis;
 
-function speak(text, priority = false) {
-  if (!voiceEnabled) return;
+function speak(text, priority = false, onDone = null) {
+  if (!voiceEnabled) {
+    if (onDone) setTimeout(onDone, 0);
+    return;
+  }
   if (priority) synth.cancel();
   const utt = new SpeechSynthesisUtterance(text);
-  utt.rate = 0.92;
+  utt.rate = 0.85;
   utt.pitch = 1.0;
   utt.volume = 1.0;
   utt.onstart = () => { speaking = true; document.getElementById('voiceDot').classList.add('active'); };
-  utt.onend = () => { speaking = false; document.getElementById('voiceDot').classList.remove('active'); };
+  utt.onend = () => {
+    speaking = false;
+    document.getElementById('voiceDot').classList.remove('active');
+    if (onDone) onDone();
+  };
   synth.speak(utt);
 }
 
@@ -800,9 +807,10 @@ function renderStep() {
 
   // Skip round headers
   if (step.type === '_round_header') {
-    speak(`Round ${step.reps} reps. ${step.circuit}.`, true);
-    currentStepIdx++;
-    setTimeout(renderStep, 800);
+    speak(`Round ${step.reps} reps. ${step.circuit}.`, true, () => {
+      currentStepIdx++;
+      renderStep();
+    });
     return;
   }
 
@@ -860,8 +868,9 @@ function renderStep() {
   } else if (step.type === 'set') {
     guidedExercises = step.exercises;
     guidedExIdx = 0;
-    speak(`${step.name}. ${step.exercises.length} exercises. Let us go.`, true);
-    setTimeout(() => startGuidedSet(step.exercises, () => nextStep()), 1000);
+    speak(`${step.name}. ${step.exercises.length} exercises.`, true, () => {
+      startGuidedSet(step.exercises, () => nextStep());
+    });
   } else if (step.type === 'max_effort') {
     speak(`${step.name}. ${step.cue}`, true);
   } else if (step.type === 'hill_circuit') {
@@ -902,9 +911,9 @@ let guidedExIdx = 0;
 let guidedPhase = 'idle'; // 'setup' | 'counting' | 'rest'
 let guidedRepCount = 0;
 let guidedRepInterval = null;
-const REP_PACE_MS = 1800; // ms between spoken rep numbers
+const REP_PACE_MS = 2400; // ms between spoken rep numbers — enough time to actually do the rep
 const SETUP_SECS = 5;     // seconds to get into position
-const BETWEEN_EX_SECS = 8; // rest between exercises in a set
+const BETWEEN_EX_SECS = 10; // rest between exercises in a set
 
 function clearGuidedInterval() {
   if (guidedRepInterval) { clearInterval(guidedRepInterval); guidedRepInterval = null; }
@@ -932,22 +941,23 @@ function runGuidedExercise(onAllDone) {
   // Update UI to show current exercise highlighted
   updateGuidedUI(ex, 'setup', SETUP_SECS, 0);
 
-  speak(`Next. ${ex.name}. ${ex.reps} reps. ${ex.cue} Take your position.`, true);
-
-  // Setup countdown
-  let setupRemaining = SETUP_SECS;
-  const setupTick = setInterval(() => {
-    setupRemaining--;
+  speak(`Next up. ${ex.name}. ${ex.reps} reps. ${ex.cue}. Take your position.`, true, () => {
+    // Only start countdown AFTER instruction has finished speaking
+    updateGuidedUI(ex, 'setup', SETUP_SECS, 0);
+    let setupRemaining = SETUP_SECS;
     updateGuidedTimerDisplay(setupRemaining);
-    if (setupRemaining === 3) speak('3', false);
-    if (setupRemaining === 2) speak('2', false);
-    if (setupRemaining === 1) speak('1', false);
-    if (setupRemaining <= 0) {
-      clearInterval(setupTick);
-      speak('Go.', true);
-      setTimeout(() => startCounting(ex, onAllDone), 600);
-    }
-  }, 1000);
+    const setupTick = setInterval(() => {
+      setupRemaining--;
+      updateGuidedTimerDisplay(setupRemaining);
+      if (setupRemaining === 3) speak('3', false);
+      if (setupRemaining === 2) speak('2', false);
+      if (setupRemaining === 1) speak('1', false);
+      if (setupRemaining <= 0) {
+        clearInterval(setupTick);
+        speak('Go.', true, () => startCounting(ex, onAllDone));
+      }
+    }, 1000);
+  });
 }
 
 function startCounting(ex, onAllDone) {
