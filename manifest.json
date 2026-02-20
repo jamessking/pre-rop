@@ -2,7 +2,7 @@
   "name": "Pre-ROP Fitness Plan",
   "short_name": "Pre-ROP",
   "description": "Royal Marines Pre-Entry Fitness Programme — 4 week coached workout app",
-  "start_url": "/",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0a0c0e",
   "theme_color": "#c8960c",
